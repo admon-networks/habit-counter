@@ -9,12 +9,22 @@
 <body>
     <h1>習慣カウンター</h1>
     <!-- id="count"はJavaScriptから部品を探すための名札 -->
-    <p>今日の回数：<span id="count">0</span></p> 
+    <p>今日の回数：<span id="count">0</span>回</p> 
     <!-- id="add"も名札 -->
     <button id="add">+1</button>
+    <button id="undo">-1</button>
+    <p>今月の回数：<span id="month-count">0</span>回</p>
+    <p>今月の金額：<span id="month-cost">0</span>円</p>
+    <p>月末の予測：<span id="forecast">0</span>円</p>
+
+    <label>
+    1回あたりの金額（円）：
+    <input type="number" id="unit-price" min="0" step="0.1">
+    </label>
 
     <script>
-        const STORAGE_KEY = "habit-counter-records";
+        const STORAGE_KEY = "habit-counter-records";  //レコードの保存場所
+        const PRICE_KEY = "habit-counter-unit-price"; //金額の保存場所
 
         //保存されている記録を読み込む（なければ空の配列）
         function loadRecords() {
@@ -35,6 +45,24 @@
             }
         }
 
+        // 1回あたりの金額を読み込む（なければ0）
+        function loadPrice() {
+            try {
+                return Number(localStorage.getItem(PRICE_KEY)) || 0;
+            } catch (e) {
+                return 0;
+            }
+        }
+
+        // 1回あたりの金額を保存する
+        function savePrice(price) {
+            try {
+                localStorage.setItem(PRICE_KEY, String(price));
+            } catch (e) {
+                alert("保存に失敗しました")
+            }
+        }
+
         // その時刻が「今日」かどうか
         function isToday(isoString) {
             const d = new Date(isoString);
@@ -44,20 +72,70 @@
               && d.getDate() === now.getDate();
         }
 
+        function isThisMonth(isoString) {
+            const d = new Date(isoString) ;
+            const now = new Date();
+            return d.getFullYear() === now.getFullYear()
+              && d.getMonth() === now.getMonth();
+        }
+
         // 画面の表示を更新する
         function render() {
             const todayCount = records.filter(isToday).length;
-            countEl.textContent = todayCount;
+            const monthCount = records.filter(isThisMonth).length;
+            const monthCost = monthCount * unitPrice;
+
+            // 月末の予測 = 今月の金額 ÷ 経過日数 × その月の日数
+            const now = new Date();
+            const dayPassed = now.getDate();
+            const daysInMonth = new Date(now.getFullYear(), now.getMonth() + 1, 0).getDate();
+            const forecast = monthCost / dayPassed * daysInMonth;
+
+              countEl.textContent = todayCount;
+              monthCountEl.textContent = monthCount;
+              monthCostEl.textContent = Math.round(monthCost).toLocaleString();
+              forecastEl.textContent = Math.round(forecast).toLocaleString();
         }
 
         let records = loadRecords();
+        let unitPrice = loadPrice();
+
         const countEl = document.getElementById("count");
         const addBtn = document.getElementById("add");
+        const undoBtn = document.getElementById("undo");
+        const monthCountEl = document.getElementById("month-count");
+        const monthCostEl = document.getElementById("month-cost");
+        const forecastEl = document.getElementById("forecast");
+        const priceInput = document.getElementById("unit-price");
+
+        priceInput.value = unitPrice; // 保存済みの金額を入力欄に表示
 
         addBtn.addEventListener("click", () => {
             records.push(new Date().toISOString());
             saveRecords(records);
             render();
+        });
+
+        // 最後の記録を一つ取り消す（今日の記録の時だけ）
+        undoBtn.addEventListener("click", () => {
+            const last = records[records.length - 1];
+            if (last && isToday(last)) {
+                records.pop();
+                saveRecords(records);
+                render();
+            }
+        });
+
+        // 金額が入力されるたびに保存して表示を更新
+        priceInput.addEventListener("input", () => {
+            unitPrice = Number(priceInput.value) || 0;
+            savePrice(unitPrice);
+            render();
+        });
+        
+        // アプリに戻ってきたときに表示を更新する
+        document.addEventListener("visibilitychange", () => {
+            if (document.visibilityState === "visible") render ();
         });
 
         render();
