@@ -1,0 +1,27 @@
+<!DOCTYPE html>
+<html lang="ja">
+<head>
+    <meta charset="UTF-8">
+    <!-- viewportにより、スマホで縮小表示されないようにする -->
+    <meta name="viewport" content="width=device-width", initial-acale=1>
+    <title>習慣カウンター</title>
+</head>
+<body>
+    <h1>習慣カウンター</h1>
+    <!-- id="count"はJavaScriptから部品を探すための名札 -->
+    <p>今日の回数：<span id="count">0</span></p> 
+    <!-- id="add"も名札 -->
+    <button id="add">+1</button>
+
+    <script>
+        let count = 0;
+        const countE1 = document.getElementById("count");
+        const addBtn = document.getElementById("add");
+        <!-- addEventListenerはボタンが押されたときの処理の登録 -->
+        addBtn.addEventListener("click" , () => {
+            count = count +1;
+            countE1.textContent = count;
+        });
+    </script>
+</body>
+</html>
