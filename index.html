@@ -3,7 +3,7 @@
 <head>
     <meta charset="UTF-8">
     <!-- viewportにより、スマホで縮小表示されないようにする -->
-    <meta name="viewport" content="width=device-width", initial-acale=1>
+    <meta name="viewport" content="width=device-width, initial-scale=1">
     <title>習慣カウンター</title>
 </head>
 <body>
@@ -14,14 +14,54 @@
     <button id="add">+1</button>
 
     <script>
-        let count = 0;
-        const countE1 = document.getElementById("count");
+        const STORAGE_KEY = "habit-counter-records";
+
+        //保存されている記録を読み込む（なければ空の配列）
+        function loadRecords() {
+            try {
+                const saved = localStorage.getItem(STORAGE_KEY);
+                return saved ? JSON.parse(saved) : [];
+            } catch (e) {
+                return [];
+            }
+        }
+
+        // 記録を保存する
+        function saveRecords(records) {
+            try {
+                localStorage.setItem(STORAGE_KEY, JSON.stringify(records));
+            } catch (e) {
+                alert ("保存に失敗しました")
+            }
+        }
+
+        // その時刻が「今日」かどうか
+        function isToday(isoString) {
+            const d = new Date(isoString);
+            const now = new Date();
+            return d.getFullYear() === now.getFullYear()
+              && d.getMonth() === now.getMonth()
+              && d.getDate() === now.getDate();
+        }
+
+        // 画面の表示を更新する
+        function render() {
+            const todayCount = records.filter(isToday).length;
+            countEl.textContent = todayCount;
+        }
+
+        let records = loadRecords();
+        const countEl = document.getElementById("count");
         const addBtn = document.getElementById("add");
-        <!-- addEventListenerはボタンが押されたときの処理の登録 -->
-        addBtn.addEventListener("click" , () => {
-            count = count +1;
-            countE1.textContent = count;
+
+        addBtn.addEventListener("click", () => {
+            records.push(new Date().toISOString());
+            saveRecords(records);
+            render();
         });
+
+        render();
+
     </script>
 </body>
 </html>
