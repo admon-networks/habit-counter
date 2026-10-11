@@ -9,7 +9,7 @@
 <body>
     <h1>習慣カウンター</h1>
     <!-- id="count"はJavaScriptから部品を探すための名札 -->
-    <p>今日の回数：<span id="count">0</span>回</p> 
+    <p>今日の回数：<span id="count">0</span>回</p>
     <!-- id="add"も名札 -->
     <button id="add">+1</button>
     <button id="undo">-1</button>
@@ -22,11 +22,22 @@
     <input type="number" id="unit-price" min="0" step="0.1">
     </label>
 
-    <script>
-        const STORAGE_KEY = "habit-counter-records";  //レコードの保存場所
-        const PRICE_KEY = "habit-counter-unit-price"; //金額の保存場所
+    <!-- データの書き出し・読み込み（バックアップ用） -->
+    <details>
+        <summary>データの書き出し・読み込み</summary>
+        <textarea id="data-box" rows="6" style="width:100%"></textarea>
+        <button id="export">書き出し</button>
+        <button id="import">読み込み</button>
+    </details>
 
-        //保存されている記録を読み込む（なければ空の配列）
+    <!-- 診断用の表示 -->
+    <p id="debug" style="font-size:12px; color:gray;"></p>
+
+    <script>
+        const STORAGE_KEY = "habit-counter-records";  // 記録の保存場所
+        const PRICE_KEY = "habit-counter-unit-price"; // 金額の保存場所
+
+        // 保存されている記録を読み込む（なければ空の配列）
         function loadRecords() {
             try {
                 const saved = localStorage.getItem(STORAGE_KEY);
@@ -41,7 +52,7 @@
             try {
                 localStorage.setItem(STORAGE_KEY, JSON.stringify(records));
             } catch (e) {
-                alert ("保存に失敗しました")
+                alert("保存に失敗しました");
             }
         }
 
@@ -59,7 +70,7 @@
             try {
                 localStorage.setItem(PRICE_KEY, String(price));
             } catch (e) {
-                alert("保存に失敗しました")
+                alert("保存に失敗しました");
             }
         }
 
@@ -72,11 +83,26 @@
               && d.getDate() === now.getDate();
         }
 
+        // その時刻が「今月」かどうか
         function isThisMonth(isoString) {
-            const d = new Date(isoString) ;
+            const d = new Date(isoString);
             const now = new Date();
             return d.getFullYear() === now.getFullYear()
               && d.getMonth() === now.getMonth();
+        }
+
+        // 診断用：保存の状態を画面の一番下に表示する
+        function renderDebug() {
+            const debugEl = document.getElementById("debug");
+            try {
+                const raw = localStorage.getItem(STORAGE_KEY);
+                debugEl.textContent =
+                    `保存キー: ${Object.keys(localStorage).join(", ") || "なし"}` +
+                    ` / 記録データ: ${raw === null ? "なし" : raw.length + "文字"}` +
+                    ` / 読み込めた件数: ${records.length}件`;
+            } catch (e) {
+                debugEl.textContent = "保存領域にアクセスできません";
+            }
         }
 
         // 画面の表示を更新する
@@ -85,16 +111,25 @@
             const monthCount = records.filter(isThisMonth).length;
             const monthCost = monthCount * unitPrice;
 
-            // 月末の予測 = 今月の金額 ÷ 経過日数 × その月の日数
+            // 月末の予測 = 1日あたりのペース × 今月の記録対象の日数
             const now = new Date();
-            const dayPassed = now.getDate();
             const daysInMonth = new Date(now.getFullYear(), now.getMonth() + 1, 0).getDate();
-            const forecast = monthCost / dayPassed * daysInMonth;
 
-              countEl.textContent = todayCount;
-              monthCountEl.textContent = monthCount;
-              monthCostEl.textContent = Math.round(monthCost).toLocaleString();
-              forecastEl.textContent = Math.round(forecast).toLocaleString();
+            // 使い始めが今月なら、その日から数える（それ以外は1日から）
+            const firstRecord = records.length > 0 ? new Date(records[0]) : now;
+            const startedThisMonth = firstRecord.getFullYear() === now.getFullYear()
+              && firstRecord.getMonth() === now.getMonth();
+            const startDay = startedThisMonth ? firstRecord.getDate() : 1;
+
+            const daysPassed = now.getDate() - startDay + 1;
+            const forecast = monthCost / daysPassed * (daysInMonth - startDay + 1);
+
+            countEl.textContent = todayCount;
+            monthCountEl.textContent = monthCount;
+            monthCostEl.textContent = Math.round(monthCost).toLocaleString();
+            forecastEl.textContent = Math.round(forecast).toLocaleString();
+
+            renderDebug();
         }
 
         let records = loadRecords();
@@ -107,6 +142,7 @@
         const monthCostEl = document.getElementById("month-cost");
         const forecastEl = document.getElementById("forecast");
         const priceInput = document.getElementById("unit-price");
+        const dataBox = document.getElementById("data-box");
 
         priceInput.value = unitPrice; // 保存済みの金額を入力欄に表示
 
@@ -116,7 +152,7 @@
             render();
         });
 
-        // 最後の記録を一つ取り消す（今日の記録の時だけ）
+        // 最後の記録を1つ取り消す（今日の記録のときだけ）
         undoBtn.addEventListener("click", () => {
             const last = records[records.length - 1];
             if (last && isToday(last)) {
@@ -132,10 +168,32 @@
             savePrice(unitPrice);
             render();
         });
-        
+
+        // 今の記録を文字にして入力欄に出す
+        document.getElementById("export").addEventListener("click", () => {
+            dataBox.value = JSON.stringify({ records, unitPrice });
+        });
+
+        // 入力欄の記録を、今の記録に合流させる
+        document.getElementById("import").addEventListener("click", () => {
+            if (!confirm("入力欄の記録を合流させますか？")) return;
+            try {
+                const data = JSON.parse(dataBox.value);
+                if (!Array.isArray(data.records)) throw new Error("形式が違います");
+                records = [...new Set([...records, ...data.records])].sort();
+                if (data.unitPrice) unitPrice = Number(data.unitPrice);
+                saveRecords(records);
+                savePrice(unitPrice);
+                priceInput.value = unitPrice;
+                render();
+            } catch (e) {
+                alert("読み込めませんでした");
+            }
+        });
+
         // アプリに戻ってきたときに表示を更新する
         document.addEventListener("visibilitychange", () => {
-            if (document.visibilityState === "visible") render ();
+            if (document.visibilityState === "visible") render();
         });
 
         render();
